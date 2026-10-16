@@ -1,0 +1,3 @@
+添加output算子
+算子支持union多个上游算子
+怎么增量source

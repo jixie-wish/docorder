@@ -1,0 +1,5 @@
+{
+"type": "map",
+"class": "docorder.functions.impl.template_to_prompt:TemplateToPrompt",
+"template": "lib/field.prompt"
+}

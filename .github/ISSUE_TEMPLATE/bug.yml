@@ -1,0 +1,26 @@
+name: Bug
+description: 运行结果和预期不一致
+title: "bug: "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: 发生了什么
+      description: 实际输出、相关日志，以及你期望的结果。
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: 版本
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: 如何复现
+      description: 命令、job 名称、epoch。不要贴 token、密钥或未公开的数据。
+    validations:
+      required: true

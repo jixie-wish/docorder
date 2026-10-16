@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install jsonnet
+        run: sudo apt-get update && sudo apt-get install -y jsonnet
+      - name: Install project
+        run: uv sync --group dev
+      - name: Lint
+        run: uv run ruff check
+      - name: Hello example
+        run: uv run python examples/hello/run.py
+      - name: Data-governance examples require a repository path
+        run: |
+          for script in documentation data_quality semantic_physical semantic_ontology; do
+            if uv run python "examples/data_governance/${script}.py" --dry-run; then
+              echo "expected a missing --dg error from ${script}" >&2
+              exit 1
+            fi
+          done

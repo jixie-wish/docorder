@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Docorder</title>
+  <link rel="stylesheet" href="intro.css">
+</head>
+<body>
+  <div class="top">
+    <a class="brand" href="#top">Docorder</a>
+    <nav>
+      <a href="#background">Background</a>
+      <a href="#model">Layout</a>
+      <a href="#install">Install</a>
+      <a href="#usage">Usage</a>
+      <a href="#again">Again</a>
+      <a href="#further">Reading</a>
+    </nav>
+    <a class="lang" href="index.html">中文</a>
+  </div>
+
+  <header class="hero" id="top">
+    <div>
+      <p class="kicker">Python library · stage runner</p>
+      <h1>Process a batch of same-shaped directories, one stage at a time</h1>
+      <p class="lead">Similar objects become directories, then move along a directed acyclic graph one stage at a time. An operator describes the transform. Where this run writes is decided by the run.</p>
+    </div>
+    <figure class="pipeline">
+      <div class="pipe">
+        <div class="pipe-col">
+          <p class="pipe-label">Source files</p>
+          <div class="stack">
+            <span class="sheet">orders.jsonnet</span>
+            <span class="sheet">users.jsonnet</span>
+            <span class="sheet">items.jsonnet</span>
+          </div>
+        </div>
+        <div class="gate" aria-hidden="true"><span>source<br>finished</span></div>
+        <div class="pipe-col">
+          <p class="pipe-label">tables / 20261015</p>
+          <div class="stack">
+            <article class="folder">
+              <header>orders</header>
+              <ul>
+                <li><i class="dot"></i>data</li>
+                <li><i class="dot tag"></i>tag.json</li>
+              </ul>
+            </article>
+            <article class="folder">
+              <header>users</header>
+              <ul>
+                <li><i class="dot"></i>data</li>
+                <li><i class="dot tag"></i>tag.json</li>
+              </ul>
+            </article>
+            <article class="folder">
+              <header>items</header>
+              <ul>
+                <li><i class="dot"></i>data</li>
+                <li><i class="dot tag"></i>tag.json</li>
+              </ul>
+            </article>
+          </div>
+        </div>
+        <div class="gate" aria-hidden="true"><span>map<br>finished</span></div>
+        <div class="pipe-col">
+          <p class="pipe-label">prompt / 20261015</p>
+          <div class="stack">
+            <article class="folder kept">
+              <header>orders</header>
+              <ul>
+                <li><i class="dot"></i>data</li>
+                <li><i class="dot tag"></i>tag.json</li>
+                <li><i class="dot up"></i>upstream</li>
+              </ul>
+            </article>
+            <article class="folder kept">
+              <header>users</header>
+              <ul>
+                <li><i class="dot"></i>data</li>
+                <li><i class="dot tag"></i>tag.json</li>
+                <li><i class="dot up"></i>upstream</li>
+              </ul>
+            </article>
+            <article class="folder pending">
+              <header>items · open</header>
+              <ul>
+                <li><i class="dot"></i>data</li>
+                <li><i class="dot tag"></i>tag.json</li>
+                <li class="absent"><i class="dot up"></i>no upstream yet</li>
+              </ul>
+            </article>
+          </div>
+        </div>
+      </div>
+      <p class="caption">Downstream waits until the previous stage has finished. items has no upstream in tag.json, so another run of this epoch fills in only that one.</p>
+    </figure>
+  </header>
+
+  <main>
+    <section class="section" id="background">
+      <div class="section-head">
+        <h2>Background</h2>
+        <p>Progress lives in each object's own directory. A stage waits for the previous stage, then fills in what is unfinished and redoes what the upstream changed.</p>
+      </div>
+      <div class="cards">
+        <article class="card">
+          <span class="num">1</span>
+          <strong>A batch of same-shaped objects</strong>
+          <p>Tables or models pass through the same steps: take a source file, render a prompt, call a model, keep the result.</p>
+        </article>
+        <article class="card">
+          <span class="num">2</span>
+          <strong>Calls are slow, and they stop halfway</strong>
+          <p>A token limit, a process exit, or a non-zero command can happen after thousands of objects are already done.</p>
+        </article>
+        <article class="card">
+          <span class="num">3</span>
+          <strong>Operators outlive one run</strong>
+          <p>An operator describes a transform, not this run's output path. The output directory and any overrides are filled in when the job is assembled.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" id="model">
+      <div class="section-head">
+        <h2>How the work is organized</h2>
+      </div>
+      <div class="split">
+        <div class="prose">
+          <h3>An entity is one directory</h3>
+          <p>The directory name is the entity name. It cannot contain a slash, and it cannot start with <code>.</code> or <code>_</code>. <code>data</code> is the body, and <code>tag.json</code> holds traits for filtering and templates. When the entity has an upstream, the snapshot lives in <code>tag.json</code> as <code>upstream</code>. The start of the graph has no upstream, so it does not write that key.</p>
+          <p><code>20261015</code> is the epoch of this run, the subdirectory that holds the entities. A different epoch is a different subdirectory. The previous result stays where it is.</p>
+        </div>
+        <pre class="tree" aria-label="Directories of one run">runs/
+├─ tables/                 source
+│  └─ 20261015/orders/
+│     ├─ data             body
+│     └─ tag.json         traits
+└─ prompt/                 map
+   └─ 20261015/orders/
+      ├─ data
+      └─ tag.json         includes upstream</pre>
+      </div>
+
+      <h3 style="margin-top:1.6rem">Four correspondences</h3>
+      <p>An operator's static files live in a home found through <code>DOCORDER_HOMES</code>. A home earlier in the list wins. <code>type</code> and <code>class</code> in <code>props.json</code> are required, and a job cannot change them. <code>class</code> is <code>module:Class</code>, or <code>primary:Class</code> to load <code>primary.py</code> in the home. <code>parallelism</code> and <code>retry</code> may also be written in the home, and adding a node can override them. A missing external program is not retried. A non-zero status runs that entity again according to <code>retry</code>. The functions that can be configured directly are source and map. The other two types have base classes.</p>
+      <div class="types">
+        <article class="type">
+          <div class="mini" aria-hidden="true">
+            <div class="col"><b class="file">a.j</b><b class="file">b.j</b></div>
+            <i>→</i>
+            <div class="col"><b>a</b><b>b</b></div>
+          </div>
+          <strong>source</strong>
+          <p>No upstream. The function produces the first entities.</p>
+        </article>
+        <article class="type">
+          <div class="mini" aria-hidden="true">
+            <div class="col"><b>a</b><b>b</b></div>
+            <i>→</i>
+            <div class="col"><b>a</b><b>b</b></div>
+          </div>
+          <strong>map</strong>
+          <p>One same-named entity for each upstream entity.</p>
+        </article>
+        <article class="type">
+          <div class="mini" aria-hidden="true">
+            <div class="col"><b>a</b><b>b</b><b>c</b></div>
+            <i>→</i>
+            <div class="col"><b class="one">result</b></div>
+          </div>
+          <strong>reduce</strong>
+          <p>The whole upstream batch becomes one entity.</p>
+        </article>
+        <article class="type">
+          <div class="mini" aria-hidden="true">
+            <div class="col"><b>a</b></div>
+            <i>→</i>
+            <div class="col"><b>a1</b><b>a2</b><b>a3</b></div>
+          </div>
+          <strong>fanout</strong>
+          <p>One upstream entity splits into many.</p>
+        </article>
+      </div>
+
+      <h3 style="margin-top:1.6rem">A job is a graph</h3>
+      <p>Each node has a name, an operator home, and an output path for this run. The output path is not stored in the home. Every node other than a source declares one upstream. The runner executes in topological order. A node finishes completely before its downstream starts. Declaration order decides which of two independent nodes runs first.</p>
+    </section>
+
+    <section class="section" id="install">
+      <div class="section-head">
+        <h2>Install</h2>
+        <p>Python 3.10 or newer, and <a href="https://docs.astral.sh/uv/">uv</a>. The package is not on PyPI yet, so install it from the repository. The install provides the library and the function classes. Operator homes are directories you place on <code>DOCORDER_HOMES</code>. They are not shipped in the package.</p>
+      </div>
+      <div class="install">
+        <p class="cmd">git clone https://github.com/jixie-wish/docorder.git &amp;&amp; cd docorder &amp;&amp; uv sync</p>
+        <div class="pills">
+          <span>Jinja2 comes with the install</span>
+          <span>JsonnetToPrompt needs a local jsonnet</span>
+          <span>PromptToLLM tools are defined by you in the home's tools/</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="usage">
+      <div class="section-head">
+        <h2>Usage</h2>
+        <p>Both homes must be visible to <code>DOCORDER_HOMES</code>, then a script joins them. Function parameters are in <a href="functions.en.md">functions.en.md</a>.</p>
+      </div>
+      <div class="files">
+        <figure class="file">
+          <figcaption>tables_source/props.json</figcaption>
+          <pre>{
+  "type": "source",
+  "class": "docorder.functions.impl.directory_source:DirectorySource",
+  "directory": "/data/tables"
+}</pre>
+        </figure>
+        <figure class="file">
+          <figcaption>jsonnet_prompt/props.json</figcaption>
+          <pre>{
+  "type": "map",
+  "class": "docorder.functions.impl.jsonnet_to_prompt:JsonnetToPrompt",
+  "parallelism": 4,
+  "retry": { "max_attempts": 3, "backoff_seconds": 5 }
+}</pre>
+        </figure>
+        <figure class="file wide">
+          <figcaption>run.py</figcaption>
+          <pre>import os
+from pathlib import Path
+
+from docorder.core.job import Job
+from docorder.core.runner import execute
+
+
+def main() -> None:
+    os.environ["DOCORDER_HOMES"] = "/opt/docorder-homes"
+    job = Job("documentation", Path("runs"))
+    job.add_operator_node("tables", "tables_source")
+    job.add_operator_node("prompt", "jsonnet_prompt", upstream="tables")
+    execute(job, "20261015", start_from_scratch=True)
+
+
+if __name__ == "__main__":
+    main()</pre>
+        </figure>
+      </div>
+      <div class="pathline">
+        <span>runs/tables/20261015/…</span>
+        <span>runs/prompt/20261015/…</span>
+      </div>
+      <p>A relative <code>directory</code> is resolved against the operator home. Each direct child file becomes one entity. The name is the stem with the last suffix removed, and the body is the original file text. A source rewrites from the directory only when <code>start_from_scratch=True</code>. Otherwise downstream reads the entities already at the output path. <code>config</code> may override same-named function parameters from the home. When <code>parallelism</code> is greater than 1 the runner slices the work across threads in the current process and does not start worker processes.</p>
+    </section>
+
+    <section class="section" id="again">
+      <div class="section-head">
+        <h2>Running the same epoch again</h2>
+        <p>The runner compares the expected names with the directories on disk. A model call retries inside the stage according to <code>retry</code>. After retries are exhausted, entities that already have a snapshot stay, and the next run continues from the rest.</p>
+      </div>
+      <div class="states">
+        <article class="state keep">
+          <article class="folder kept">
+            <header>orders</header>
+            <ul><li><i class="dot up"></i>tag.json upstream still matches</li></ul>
+          </article>
+          <strong style="margin-top:0.7rem">Stays</strong>
+          <p>The recorded upstream hash and epoch both match the current upstream.</p>
+        </article>
+        <article class="state run">
+          <article class="folder pending">
+            <header>items</header>
+            <ul><li class="absent"><i class="dot up"></i>no snapshot, or the hash changed</li></ul>
+          </article>
+          <strong style="margin-top:0.7rem">Run and overwrite</strong>
+          <p>Expected, but not finished yet, or the upstream body has changed.</p>
+        </article>
+        <article class="state drop">
+          <article class="folder gone">
+            <header>draft</header>
+            <ul><li>no longer on the list</li></ul>
+          </article>
+          <strong style="margin-top:0.7rem">Deleted</strong>
+          <p>Still on disk, and no longer in the expected names.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" id="further">
+      <div class="section-head">
+        <h2>Further reading</h2>
+      </div>
+      <div class="reads">
+        <a class="read" href="functions.en.md">
+          <strong>functions.en.md</strong>
+          <p>What each function does, what the operator must configure, and how to add and refer to template variables.</p>
+        </a>
+        <a class="read" href="design.en.md">
+          <strong>design.en.md</strong>
+          <p>What an entity, an operator, and a job each hold, and how one stage compares that with the entities on disk and writes them.</p>
+        </a>
+      </div>
+    </section>
+  </main>
+  <footer>Docorder. Python 3.10+. License: LICENSE in the repository.</footer>
+</body>
+</html>

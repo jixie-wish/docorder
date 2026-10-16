@@ -1,0 +1,5 @@
+{
+  "table": "fct_dau",
+  "database": "core_data",
+  "platform": "hive"
+}

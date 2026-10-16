@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Docorder</title>
+  <link rel="stylesheet" href="intro.css">
+</head>
+<body>
+  <div class="top">
+    <a class="brand" href="#top">Docorder</a>
+    <nav>
+      <a href="#background">背景</a>
+      <a href="#model">组织</a>
+      <a href="#install">安装</a>
+      <a href="#usage">用法</a>
+      <a href="#again">再跑</a>
+      <a href="#further">阅读</a>
+    </nav>
+    <a class="lang" href="index.en.html">English</a>
+  </div>
+
+  <header class="hero" id="top">
+    <div>
+      <p class="kicker">Python 库 · stage runner</p>
+      <h1>按阶段处理一批结构相同的目录</h1>
+      <p class="lead">许多相似的对象收成目录，再沿一张有向无环图逐段转换。算子只描述转换。输出放在哪一次运行里，由这次运行决定。</p>
+    </div>
+    <figure class="pipeline">
+      <div class="pipe">
+        <div class="pipe-col">
+          <p class="pipe-label">源文件</p>
+          <div class="stack">
+            <span class="sheet">orders.jsonnet</span>
+            <span class="sheet">users.jsonnet</span>
+            <span class="sheet">items.jsonnet</span>
+          </div>
+        </div>
+        <div class="gate" aria-hidden="true"><span>source<br>整段结束</span></div>
+        <div class="pipe-col">
+          <p class="pipe-label">tables / 20261015</p>
+          <div class="stack">
+            <article class="folder">
+              <header>orders</header>
+              <ul>
+                <li><i class="dot"></i>data</li>
+                <li><i class="dot tag"></i>tag.json</li>
+              </ul>
+            </article>
+            <article class="folder">
+              <header>users</header>
+              <ul>
+                <li><i class="dot"></i>data</li>
+                <li><i class="dot tag"></i>tag.json</li>
+              </ul>
+            </article>
+            <article class="folder">
+              <header>items</header>
+              <ul>
+                <li><i class="dot"></i>data</li>
+                <li><i class="dot tag"></i>tag.json</li>
+              </ul>
+            </article>
+          </div>
+        </div>
+        <div class="gate" aria-hidden="true"><span>map<br>整段结束</span></div>
+        <div class="pipe-col">
+          <p class="pipe-label">prompt / 20261015</p>
+          <div class="stack">
+            <article class="folder kept">
+              <header>orders</header>
+              <ul>
+                <li><i class="dot"></i>data</li>
+                <li><i class="dot tag"></i>tag.json</li>
+                <li><i class="dot up"></i>upstream</li>
+              </ul>
+            </article>
+            <article class="folder kept">
+              <header>users</header>
+              <ul>
+                <li><i class="dot"></i>data</li>
+                <li><i class="dot tag"></i>tag.json</li>
+                <li><i class="dot up"></i>upstream</li>
+              </ul>
+            </article>
+            <article class="folder pending">
+              <header>items · 未完成</header>
+              <ul>
+                <li><i class="dot"></i>data</li>
+                <li><i class="dot tag"></i>tag.json</li>
+                <li class="absent"><i class="dot up"></i>还没有 upstream</li>
+              </ul>
+            </article>
+          </div>
+        </div>
+      </div>
+      <p class="caption">下游等上一段全部结束。items 的 tag.json 里还没有 upstream，同一 epoch 再跑时只补这一个。</p>
+    </figure>
+  </header>
+
+  <main>
+    <section class="section" id="background">
+      <div class="section-head">
+        <h2>背景</h2>
+        <p>进度记在每个对象自己的目录里。一段等上一段结束，段内只补没做完的、重做上游变了的。</p>
+      </div>
+      <div class="cards">
+        <article class="card">
+          <span class="num">1</span>
+          <strong>一批相同的对象</strong>
+          <p>一张张表、一个个模型，走相同的几步：取得源文件，渲染提示词，调用模型，留下结果。</p>
+        </article>
+        <article class="card">
+          <span class="num">2</span>
+          <strong>调用慢，而且会停在半路</strong>
+          <p>令牌用尽、进程退出、外部命令返回错误，都可能发生在几千个对象已经处理了一部分之后。</p>
+        </article>
+        <article class="card">
+          <span class="num">3</span>
+          <strong>算子可以换一次运行再用来</strong>
+          <p>算子描述转换，不描述这次的输出位置。输出目录和要覆盖的参数，在组装作业时再填上。</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" id="model">
+      <div class="section-head">
+        <h2>工作是怎么组织的</h2>
+      </div>
+      <div class="split">
+        <div class="prose">
+          <h3>实体是一层子目录</h3>
+          <p>目录名就是实体名。名字不能含斜杠，也不能以 <code>.</code> 或 <code>_</code> 开头。<code>data</code> 是正文，<code>tag.json</code> 是给下游过滤和填模板的特性，有上游时还含 <code>upstream</code> 快照。图的起点没有上游，因此不写这个键。</p>
+          <p><code>20261015</code> 是这次运行的 epoch，也就是实体所在的那层子目录名。换一个 epoch 等于换一个子目录，上一次的结果留在原处。</p>
+        </div>
+        <pre class="tree" aria-label="一次运行的目录">runs/
+├─ tables/                 source
+│  └─ 20261015/orders/
+│     ├─ data             正文
+│     └─ tag.json         特性
+└─ prompt/                 map
+   └─ 20261015/orders/
+      ├─ data
+      └─ tag.json         含 upstream</pre>
+      </div>
+
+      <h3 style="margin-top:1.6rem">四种对应</h3>
+      <p>算子的静态文件放在 home 里，由 <code>DOCORDER_HOMES</code> 搜索，靠前的同名目录优先。<code>props.json</code> 里的 <code>type</code> 和 <code>class</code> 必须书写，作业不能改。<code>class</code> 写成 <code>模块:类名</code>，或写成 <code>primary:类名</code> 以加载 home 里的 <code>primary.py</code>。<code>parallelism</code> 和 <code>retry</code> 也可以写在 home 里，添加节点时可以覆盖。找不到外部程序不会重试；程序返回非零状态时，按 <code>retry</code> 再执行该实体。包内可以直接配置的 function 是 source 和 map，后两种类型已有基类。</p>
+      <div class="types">
+        <article class="type">
+          <div class="mini" aria-hidden="true">
+            <div class="col"><b class="file">a.j</b><b class="file">b.j</b></div>
+            <i>→</i>
+            <div class="col"><b>a</b><b>b</b></div>
+          </div>
+          <strong>source</strong>
+          <p>没有上游。function 产出第一批实体。</p>
+        </article>
+        <article class="type">
+          <div class="mini" aria-hidden="true">
+            <div class="col"><b>a</b><b>b</b></div>
+            <i>→</i>
+            <div class="col"><b>a</b><b>b</b></div>
+          </div>
+          <strong>map</strong>
+          <p>上游每个实体写出一个同名实体。</p>
+        </article>
+        <article class="type">
+          <div class="mini" aria-hidden="true">
+            <div class="col"><b>a</b><b>b</b><b>c</b></div>
+            <i>→</i>
+            <div class="col"><b class="one">result</b></div>
+          </div>
+          <strong>reduce</strong>
+          <p>上游整批收成一个实体。</p>
+        </article>
+        <article class="type">
+          <div class="mini" aria-hidden="true">
+            <div class="col"><b>a</b></div>
+            <i>→</i>
+            <div class="col"><b>a1</b><b>a2</b><b>a3</b></div>
+          </div>
+          <strong>fanout</strong>
+          <p>一个上游实体拆成多个。</p>
+        </article>
+      </div>
+
+      <h3 style="margin-top:1.6rem">作业是一张图</h3>
+      <p>每个节点有名称、算子 home、本次输出路径。输出路径不写进 home。除 source 以外，每个节点声明一个上游。runner 按拓扑顺序执行，一个节点全部结束才开始下游。书写顺序用来排定互不依赖的节点谁先谁后。</p>
+    </section>
+
+    <section class="section" id="install">
+      <div class="section-head">
+        <h2>安装</h2>
+        <p>Python 3.10 或更高版本，以及 <a href="https://docs.astral.sh/uv/">uv</a>。PyPI 上还没有这个包，从仓库安装。装上的是库和 function 类。算子 home 由调用方放到 <code>DOCORDER_HOMES</code> 里，不随包分发。</p>
+      </div>
+      <div class="install">
+        <p class="cmd">git clone https://github.com/jixie-wish/docorder.git &amp;&amp; cd docorder &amp;&amp; uv sync</p>
+        <div class="pills">
+          <span>Jinja2 随安装装上</span>
+          <span>JsonnetToPrompt 需要本机 jsonnet</span>
+          <span>PromptToLLM 的工具由你在 home 的 tools/ 里定义</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="usage">
+      <div class="section-head">
+        <h2>用法</h2>
+        <p>两个 home 能被 <code>DOCORDER_HOMES</code> 找到，再在脚本里连成作业。各 function 的参数见 <a href="functions.md">functions.md</a>。</p>
+      </div>
+      <div class="files">
+        <figure class="file">
+          <figcaption>tables_source/props.json</figcaption>
+          <pre>{
+  "type": "source",
+  "class": "docorder.functions.impl.directory_source:DirectorySource",
+  "directory": "/data/tables"
+}</pre>
+        </figure>
+        <figure class="file">
+          <figcaption>jsonnet_prompt/props.json</figcaption>
+          <pre>{
+  "type": "map",
+  "class": "docorder.functions.impl.jsonnet_to_prompt:JsonnetToPrompt",
+  "parallelism": 4,
+  "retry": { "max_attempts": 3, "backoff_seconds": 5 }
+}</pre>
+        </figure>
+        <figure class="file wide">
+          <figcaption>run.py</figcaption>
+          <pre>import os
+from pathlib import Path
+
+from docorder.core.job import Job
+from docorder.core.runner import execute
+
+
+def main() -> None:
+    os.environ["DOCORDER_HOMES"] = "/opt/docorder-homes"
+    job = Job("documentation", Path("runs"))
+    job.add_operator_node("tables", "tables_source")
+    job.add_operator_node("prompt", "jsonnet_prompt", upstream="tables")
+    execute(job, "20261015", start_from_scratch=True)
+
+
+if __name__ == "__main__":
+    main()</pre>
+        </figure>
+      </div>
+      <div class="pathline">
+        <span>runs/tables/20261015/…</span>
+        <span>runs/prompt/20261015/…</span>
+      </div>
+      <p><code>directory</code> 的相对路径相对算子 home 解析。每个直接子文件成为一个实体，名字是去掉最后一个后缀的主名，正文是文件原文。source 只在 <code>start_from_scratch=True</code> 时按目录重写；否则下游读取输出路径上已经存在的实体。<code>config</code> 可以覆盖 home 里的同名 function 参数。<code>parallelism</code> 大于 1 时 runner 在当前进程里用线程分片，不另起子进程。</p>
+    </section>
+
+    <section class="section" id="again">
+      <div class="section-head">
+        <h2>同一 epoch 再跑</h2>
+        <p>runner 把应得名单和磁盘上的目录做比较。模型调用按 home 里的 <code>retry</code> 在本段内重试；重试耗尽后，已写好快照的实体留下，下次从其余实体继续。</p>
+      </div>
+      <div class="states">
+        <article class="state keep">
+          <article class="folder kept">
+            <header>orders</header>
+            <ul><li><i class="dot up"></i>tag.json 的 upstream 仍吻合</li></ul>
+          </article>
+          <strong style="margin-top:0.7rem">留下</strong>
+          <p>快照里的上游哈希和 epoch 都与当前一致。</p>
+        </article>
+        <article class="state run">
+          <article class="folder pending">
+            <header>items</header>
+            <ul><li class="absent"><i class="dot up"></i>没有快照，或哈希变了</li></ul>
+          </article>
+          <strong style="margin-top:0.7rem">执行并覆盖</strong>
+          <p>名单里有，但还没完成；或上游正文已经变了。</p>
+        </article>
+        <article class="state drop">
+          <article class="folder gone">
+            <header>draft</header>
+            <ul><li>名单里已经没有</li></ul>
+          </article>
+          <strong style="margin-top:0.7rem">删除</strong>
+          <p>目录里还在，应得名单里已经没有这个名字。</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" id="further">
+      <div class="section-head">
+        <h2>进一步阅读</h2>
+      </div>
+      <div class="reads">
+        <a class="read" href="functions.md">
+          <strong>functions.md</strong>
+          <p>每个 function 的用途、算子要写的配置，以及模板变量如何增加和引用。</p>
+        </a>
+        <a class="read" href="design.md">
+          <strong>design.md</strong>
+          <p>实体、算子与作业各自持有什么，一次 stage 如何与磁盘上的实体比较并落盘。</p>
+        </a>
+      </div>
+    </section>
+  </main>
+  <footer>Docorder。Python 3.10+。许可见仓库中的 LICENSE。</footer>
+</body>
+</html>
